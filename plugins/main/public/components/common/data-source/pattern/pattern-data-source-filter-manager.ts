@@ -265,10 +265,16 @@ export class PatternDataSourceFilterManager
   ): tFilter[] {
     const filterHandler = new FilterHandler();
     const isCluster = AppState.getClusterInfo().status == 'enabled';
+    const filterValue = isCluster
+      ? AppState.getClusterInfo().cluster
+      : AppState.getClusterInfo().manager;
+
+    if (!filterValue) {
+      return [];
+    }
+
     const managerFilter = filterHandler.managerQuery(
-      isCluster
-        ? AppState.getClusterInfo().cluster
-        : AppState.getClusterInfo().manager,
+      filterValue,
       isCluster,
       key,
     );

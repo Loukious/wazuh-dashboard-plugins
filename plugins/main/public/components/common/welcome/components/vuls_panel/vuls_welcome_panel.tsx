@@ -58,7 +58,7 @@ const VulsPanelContent = ({ agent }) => {
         },
       },
     });
-    setSeverityStats(data.aggregations.severity.buckets);
+    setSeverityStats(data?.aggregations?.severity?.buckets || []);
   };
 
   const fetchTopPackagesData = async () => {
@@ -75,7 +75,7 @@ const VulsPanelContent = ({ agent }) => {
         },
       },
     }).then(results => {
-      setTopPackagesData(results.aggregations.package.buckets);
+      setTopPackagesData(results?.aggregations?.package?.buckets || []);
     });
   };
 

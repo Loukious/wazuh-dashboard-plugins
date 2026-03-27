@@ -124,10 +124,39 @@ export const search = async (
     ];
   }
 
+  const toClause = (f: any) => {
+    if (f.query) return f.query;
+    if (f.exists) return { exists: f.exists };
+    if (f.range) return { range: f.range };
+    return null;
+  };
+
+  const isValid = (q: any) => {
+    if (!q) return false;
+    const type = Object.keys(q)[0] as string;
+    if (!type) return false;
+    const inner = (q as any)[type];
+    return typeof inner !== 'object' || Object.keys(inner).length > 0;
+  };
+
+  const mustClauses = filters
+    .map(toClause)
+    .filter(c => c && isValid(c));
+
+  const mergedQuery = {
+    bool: {
+      must: mustClauses as any[],
+    },
+  };
+
+  if (query && query.query) {
+    mergedQuery.bool.must.push(query.query);
+  }
+
   const searchParams = searchSource
     .setParent(undefined)
-    .setField('filter', filters)
-    .setField('query', query)
+    .setField('filter', [])
+    .setField('query', mergedQuery)
     .setField('sort', sortOrder)
     .setField('size', pageSize)
     .setField('from', fromField)

@@ -47,6 +47,34 @@ function getUniqueEntriesByIndiceDatasetPar(
   });
 }
 
+function normalizeBoolQuery(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(normalizeBoolQuery);
+  if (obj.bool) {
+    const filter = obj.bool.filter || [];
+    const must = obj.bool.must || [];
+    const must_not = obj.bool.must_not;
+    const should = obj.bool.should || [];
+    const rest = Object.assign({}, obj.bool);
+    delete rest.filter; delete rest.must; delete rest.must_not; delete rest.should;
+    const validFilter = filter.filter((f: any) => {
+      const type = Object.keys(f)[0];
+      if (!type) return false;
+      const inner = f[type];
+      return typeof inner !== 'object' || Object.keys(inner).length > 0;
+    });
+    obj.bool = Object.assign({}, rest, {
+      must: [...must, ...validFilter],
+    });
+    if (must_not !== undefined) obj.bool.must_not = must_not;
+    if (should.length) obj.bool.should = should;
+  }
+  for (const key of Object.keys(obj)) {
+    obj[key] = normalizeBoolQuery(obj[key]);
+  }
+  return obj;
+}
+
 export class WazuhElasticCtrl {
   constructor() {}
 
@@ -194,17 +222,16 @@ export class WazuhElasticCtrl {
         size: 1,
         query: {
           bool: {
-            must: [],
+            must: [
+              {
+                range: { timestamp: {} },
+              },
+            ],
             must_not: {
               term: {
                 'agent.id': '000',
               },
             },
-            filter: [
-              {
-                range: { timestamp: {} },
-              },
-            ],
           },
         },
         aggs: {
@@ -221,8 +248,8 @@ export class WazuhElasticCtrl {
       // Set up time interval, default to Last 24h
       const timeGTE = 'now-1d';
       const timeLT = 'now';
-      payload.query.bool.filter[0].range['timestamp']['gte'] = timeGTE;
-      payload.query.bool.filter[0].range['timestamp']['lt'] = timeLT;
+      payload.query.bool.must[0].range['timestamp']['gte'] = timeGTE;
+      payload.query.bool.must[0].range['timestamp']['lt'] = timeLT;
 
       // Set up match for default cluster name
       payload.query.bool.must.push(
@@ -232,7 +259,7 @@ export class WazuhElasticCtrl {
       );
 
       if (request.query.agentsList)
-        payload.query.bool.filter.push({
+        payload.query.bool.must.push({
           terms: {
             'agent.id': request.query.agentsList.split(','),
           },
@@ -668,7 +695,7 @@ export class WazuhElasticCtrl {
   ) {
     try {
       const data = await context.core.opensearch.client.asCurrentUser.search(
-        request.body,
+        normalizeBoolQuery(request.body),
       );
       return response.ok({
         body: data.body,
